@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="th" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRS - Clinic Record System</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+* { font-family: 'Prompt', sans-serif; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.5s ease forwards; }
+.slide-up { animation: slideUp 0.6s ease forwards; }
+.card-hover { transition: all 0.3s ease; }
+.card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(37,99,235,0.15); }
+.btn-press { transition: all 0.15s ease; }
+.btn-press:active { transform: scale(0.96); }
+.input-focus { transition: border-color 0.2s, box-shadow 0.2s; }
+.input-focus:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); outline: none; }
+.nurse-bg { background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 40%, #f0f9ff 100%); }
+.header-gradient { background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%); }
+.toast-enter { animation: fadeIn 0.3s ease; }
+.page { display: none; }
+.page.active { display: block; }
+.modal-hidden { display: none !important; }
+.modal-visible { display: flex !important; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 3px; }
+  </style>
+  <script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        med: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' }
+      }
+    }
+  }
+}
+  </script>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="h-full w-full nurse-bg overflow-auto">
+   <!-- Toast -->
+   <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] hidden">
+    <div class="bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg font-medium toast-enter flex items-center gap-2">
+     <span>✅</span><span id="toast-msg"></span>
+    </div>
+   </div>
+   <!-- Error Toast -->
+   <div id="error-toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] hidden">
+    <div class="bg-red-500 text-white px-6 py-3 rounded-xl shadow-lg font-medium toast-enter flex items-center gap-2">
+     <span>❌</span><span id="error-toast-msg"></span>
+    </div>
+   </div>
+   <!-- Admin PIN Modal -->
+   <div id="pin-modal" class="modal-hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-2xl p-6 mx-4 w-full max-w-sm shadow-2xl fade-in">
+     <h3 class="text-lg font-bold text-med-800 mb-4 text-center">🔐 เข้าสู่ระบบผู้ดูแล</h3>
+     <input id="pin-input" type="password" maxlength="6" placeholder="กรอกรหัสผ่าน 6 หลัก" class="w-full border-2 border-med-200 rounded-xl px-4 py-3 text-center text-xl tracking-widest input-focus mb-2">
+     <p id="pin-error" class="text-red-500 text-sm text-center mb-3 hidden">รหัสผ่านไม่ถูกต้อง</p>
+     <div class="flex gap-3">
+      <button onclick="closePinModal()" class="flex-1 py-3 rounded-xl border-2 border-med-300 text-med-700 font-medium btn-press">ยกเลิก</button>
+      <button onclick="checkPin()" class="flex-1 py-3 rounded-xl bg-med-600 text-white font-medium btn-press hover:bg-med-700">เข้าสู่ระบบ</button>
+     </div>
+    </div>
+   </div>
+   <!-- Delete Confirm Modal -->
+   <div id="delete-modal" class="modal-hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-2xl p-6 mx-4 w-full max-w-sm shadow-2xl fade-in">
+     <h3 class="text-lg font-bold text-red-600 mb-2 text-center">⚠️ ยืนยันการลบ</h3>
+     <p class="text-gray-600 text-center mb-4" id="delete-msg">ต้องการลบข้อมูลนี้หรือไม่?</p>
+     <div class="flex gap-3">
+      <button onclick="closeDeleteModal()" class="flex-1 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-medium btn-press">ยกเลิก</button>
+      <button id="confirm-delete-btn" class="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium btn-press hover:bg-red-600">ลบ</button>
+     </div>
+    </div>
+   </div>
+
+   <!-- ===== PAGE: HOME ===== -->
+   <div id="page-home" class="page active">
+    <div class="header-gradient text-white relative overflow-hidden">
+     <button onclick="openPinModal()" style="pointer-events:auto;z-index:999" class="absolute top-4 right-4 w-10 h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center hover:bg-white/30 transition" title="ผู้ดูแลระบบ">⚙️</button>
+     <div class="px-4 pt-8 pb-6 text-center relative z-10">
+      <a href='https://postimages.org/' target='_blank'><img src='https://i.postimg.cc/1zkKmBq7/IMG-1896.png' border='0' alt='IMG-1896' class="w-32 mx-auto"></a>
+      <!-- FIX: เพิ่ม id="el-title" ที่หายไป -->
+      <h1 id="el-title" class="sr-only">CRS - Clinic Record System</h1>
+      <p class="text-blue-100 text-sm font-light">ระบบบันทึกข้อมูลห้องพยาบาลโรงเรียนอรัญประเทศ</p>
+      <div class="mt-4 bg-white/10 backdrop-blur rounded-xl px-4 py-3 max-w-md mx-auto">
+       <p id="el-slogan1" class="text-sm font-medium">งานพยาบาลและงานอนามัย</p>
+       <p id="el-slogan2" class="text-sm text-blue-100">ดูแล ส่งเสริม และป้องกัน</p>
+       <p id="el-slogan3" class="text-sm text-blue-100">สุขภาพนักเรียนและบุคลากรในสถานศึกษา</p>
+      </div>
+     </div>
+     <svg class="absolute bottom-0 left-0 w-full" viewBox="0 0 1440 60" fill="none"><path d="M0 60V20C360 0 720 40 1080 20C1260 10 1380 30 1440 20V60H0Z" fill="#dbeafe" fill-opacity="0.3"/></svg>
+    </div>
+    <div class="px-4 mt-4">
+     <div class="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-3 fade-in">
+      <span class="text-2xl">🚨</span>
+      <div>
+       <p class="text-red-700 font-semibold text-sm">เบอร์ติดต่อฉุกเฉิน</p>
+       <p id="el-emergency" class="text-red-600 font-bold text-lg">061-467-9176</p>
+      </div>
+     </div>
+    </div>
+    <!-- FIX: ลบ </div> ที่เกินออก และแก้โครงสร้าง div ให้ถูกต้อง -->
+    <div class="px-4 mt-4 fade-in">
+     <div class="rounded-2xl p-4 flex items-center gap-4">
+      <p class="text-med-800 font-semibold">ห้องพยาบาลพร้อมให้บริการ</p>
+      <p class="text-med-600 text-sm">เลือกบริการที่ต้องการด้านล่าง 👇</p>
+     </div>
+    </div>
+    <div class="px-4 mt-5 mb-32 grid grid-cols-1 gap-4 max-w-md mx-auto">
+     <button onclick="selectService('medicine')" class="card-hover btn-press bg-white rounded-2xl p-5 shadow-md border border-med-100 flex items-center gap-4 slide-up" style="animation-delay:0.1s">
+      <div class="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center text-3xl flex-shrink-0">💊</div>
+      <div class="text-left">
+       <p class="font-bold text-med-800 text-lg">รับยา</p>
+       <p class="text-med-500 text-sm">บันทึกการรับยาและอาการ</p>
+      </div>
+      <i data-lucide="chevron-right" class="ml-auto text-med-300 w-5 h-5"></i>
+     </button>
+     <button onclick="selectService('wound')" class="card-hover btn-press bg-white rounded-2xl p-5 shadow-md border border-med-100 flex items-center gap-4 slide-up" style="animation-delay:0.2s">
+      <div class="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center text-3xl flex-shrink-0">🩹</div>
+      <div class="text-left">
+       <p class="font-bold text-med-800 text-lg">ทำแผล</p>
+       <p class="text-med-500 text-sm">บันทึกการทำแผลและบริเวณ</p>
+      </div>
+      <i data-lucide="chevron-right" class="ml-auto text-med-300 w-5 h-5"></i>
+     </button>
+     <button onclick="selectService('rest')" class="card-hover btn-press bg-white rounded-2xl p-5 shadow-md border border-med-100 flex items-center gap-4 slide-up" style="animation-delay:0.3s">
+      <div class="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center text-3xl flex-shrink-0">🛏️</div>
+      <div class="text-left">
+       <p class="font-bold text-med-800 text-lg">นอนพัก</p>
+       <p class="text-med-500 text-sm">บันทึกการเข้าพักผ่อน</p>
+      </div>
+      <i data-lucide="chevron-right" class="ml-auto text-med-300 w-5 h-5"></i>
+     </button>
+    </div>
+    <div class="mt-8 pb-24 px-4 text-center">
+     <p class="text-med-400 text-xs">© 2025 CRS - Clinic Record System</p>
+    </div>
+    <div class="fixed bottom-0 left-0 right-0 px-4 py-3 bg-white border-t border-med-100 shadow-lg z-40">
+     <a href="https://www.facebook.com/share/1b2dGcfUab/?mibextid=wwXIfr" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition btn-press">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-white flex-shrink-0"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+      <span id="el-fb">งานพยาบาลและงานอนามัยโรงเรียนอรัญประเทศ</span>
+     </a>
+    </div>
+   </div>
+
+   <!-- ===== PAGE: FORM ===== -->
+   <div id="page-form" class="page">
+    <div class="header-gradient text-white px-4 py-4 flex items-center gap-3">
+     <button onclick="showPage('home')" class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center btn-press"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+     <div>
+      <h2 id="form-title" class="font-bold text-lg">💊 บันทึกการรับยา</h2>
+      <p id="form-case-id" class="text-blue-200 text-xs">CRS-20250101-0001</p>
+     </div>
+    </div>
+    <div class="px-4 py-5 pb-24 max-w-lg mx-auto">
+     <form id="clinic-form" onsubmit="return false;">
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-med-100 mb-4 fade-in">
+       <h3 class="font-semibold text-med-800 mb-3">👤 ข้อมูลส่วนบุคคล</h3>
+       <div class="space-y-3">
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-name">ชื่อ-นามสกุล *</label>
+         <input id="f-name" type="text" required class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="กรอกชื่อ-นามสกุล">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+         <div>
+          <label class="text-sm text-med-600 font-medium" for="f-age">อายุ *</label>
+          <select id="f-age" required class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm bg-white">
+           <option value="">-- เลือกอายุ --</option>
+           <option value="13">13</option><option value="14">14</option><option value="15">15</option>
+           <option value="16">16</option><option value="17">17</option><option value="18">18</option>
+           <option value="มากกว่า">มากกว่า 18</option><option value="น้อยกว่า">น้อยกว่า 13</option>
+          </select>
+         </div>
+         <div>
+          <label class="text-sm text-med-600 font-medium" for="f-room">ห้อง/ชั้น *</label>
+          <input id="f-room" type="text" required class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="เช่น ม.3/1">
+         </div>
+        </div>
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-gender">เพศ *</label>
+         <select id="f-gender" required class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm bg-white">
+          <option value="">-- เลือกเพศ --</option>
+          <option value="ชาย">ชาย</option><option value="หญิง">หญิง</option>
+         </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+         <div>
+          <label class="text-sm text-med-600 font-medium" for="f-phone">เบอร์โทร</label>
+          <input id="f-phone" type="tel" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="0xx-xxx-xxxx">
+         </div>
+         <div>
+          <label class="text-sm text-med-600 font-medium" for="f-sid">รหัสนักเรียน * (5 หลัก)</label>
+          <input id="f-sid" type="text" required pattern="\d{5}" maxlength="5" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="เช่น 12345">
+         </div>
+        </div>
+       </div>
+      </div>
+      <div id="fields-medicine" class="service-fields bg-white rounded-2xl p-4 shadow-sm border border-med-100 mb-4 fade-in hidden">
+       <h3 class="font-semibold text-med-800 mb-3">💊 รายละเอียดการรับยา</h3>
+       <div class="space-y-3">
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-symptom">อาการเบื้องต้น *</label>
+         <input id="f-symptom" type="text" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="เช่น ปวดหัว มีไข้">
+        </div>
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-medicine">ยาที่ได้รับ *</label>
+         <input id="f-medicine" type="text" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="เช่น พาราเซตามอล">
+        </div>
+       </div>
+      </div>
+      <div id="fields-wound" class="service-fields bg-white rounded-2xl p-4 shadow-sm border border-med-100 mb-4 fade-in hidden">
+       <h3 class="font-semibold text-med-800 mb-3">🩹 รายละเอียดการทำแผล</h3>
+       <div class="space-y-3">
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-cause">สาเหตุเกิดจากอะไร *</label>
+         <input id="f-cause" type="text" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="เช่น หกล้ม ถูกของมีคม">
+        </div>
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-area">เกิดบริเวณใด *</label>
+         <input id="f-area" type="text" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="เช่น เข่าซ้าย แขนขวา">
+        </div>
+       </div>
+      </div>
+      <div id="fields-rest" class="service-fields bg-white rounded-2xl p-4 shadow-sm border border-med-100 mb-4 fade-in hidden">
+       <h3 class="font-semibold text-med-800 mb-3">🛏️ รายละเอียดการนอนพัก</h3>
+       <div class="space-y-3">
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-rest-time">เวลาเริ่มเข้าพัก *</label>
+         <input id="f-rest-time" type="time" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm">
+        </div>
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-rest-symptom">อาการเบื้องต้น *</label>
+         <input id="f-rest-symptom" type="text" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="เช่น วิงเวียน คลื่นไส้">
+        </div>
+        <div>
+         <label class="text-sm text-med-600 font-medium" for="f-rest-med">ได้รับยาอะไรบ้าง</label>
+         <input id="f-rest-med" type="text" class="w-full mt-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm" placeholder="ถ้าไม่มีให้เว้นว่าง">
+        </div>
+       </div>
+      </div>
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-med-100 mb-4 fade-in">
+       <h3 class="font-semibold text-med-800 mb-3">👨‍⚕️ ผู้ให้บริการ</h3>
+       <select id="f-provider" required class="w-full border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm bg-white">
+        <option value="">-- เลือกผู้ให้บริการ --</option>
+       </select>
+      </div>
+      <button type="button" onclick="submitForm()" id="submit-btn" class="w-full py-3.5 rounded-2xl bg-med-600 text-white font-bold text-lg btn-press hover:bg-med-700 shadow-lg shadow-blue-200 transition">✅ บันทึกข้อมูล</button>
+     </form>
+    </div>
+   </div>
+
+   <!-- ===== PAGE: SUCCESS ===== -->
+   <div id="page-success" class="page">
+    <div class="flex flex-col items-center justify-center px-6 py-20 text-center fade-in" style="min-height:80%">
+     <div class="text-7xl mb-4">✅</div>
+     <h2 class="text-2xl font-bold text-med-800 mb-2">บันทึกสำเร็จ!</h2>
+     <p id="success-case" class="text-med-500 font-medium mb-1">CRS-20250101-0001</p>
+     <p id="success-name" class="text-med-600 mb-6"></p>
+     <button onclick="showPage('home')" class="px-8 py-3 rounded-2xl bg-med-600 text-white font-bold btn-press hover:bg-med-700">🏠 กลับหน้าแรก</button>
+    </div>
+   </div>
+
+   <!-- ===== PAGE: ADMIN ===== -->
+   <div id="page-admin" class="page">
+    <div class="header-gradient text-white px-4 py-4 flex items-center gap-3">
+     <button onclick="showPage('home')" class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center btn-press"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+     <div>
+      <h2 class="font-bold text-lg">⚙️ ระบบผู้ดูแล</h2>
+      <p class="text-blue-200 text-xs">Admin Dashboard</p>
+     </div>
+    </div>
+    <div class="px-4 mt-4 flex gap-2 overflow-x-auto max-w-4xl mx-auto">
+     <button onclick="showAdminTab('dashboard')" class="admin-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap bg-med-600 text-white" data-tab="dashboard">📊 แดชบอร์ด</button>
+     <button onclick="showAdminTab('records')" class="admin-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap bg-med-100 text-med-700" data-tab="records">📋 ข้อมูลทั้งหมด</button>
+     <button onclick="showAdminTab('providers')" class="admin-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap bg-med-100 text-med-700" data-tab="providers">👨‍⚕️ ผู้ให้บริการ</button>
+    </div>
+    <div id="tab-dashboard" class="admin-content px-4 mt-4 pb-8 max-w-4xl mx-auto">
+     <div class="grid grid-cols-3 gap-3 mb-4">
+      <div class="bg-white rounded-xl p-3 shadow-sm border border-med-100 text-center">
+       <p class="text-xs text-med-500">ทั้งหมด</p>
+       <p id="admin-total" class="text-2xl font-bold text-med-700">0</p>
+      </div>
+      <div class="bg-white rounded-xl p-3 shadow-sm border border-med-100 text-center">
+       <p class="text-xs text-med-500">เดือนนี้</p>
+       <p id="admin-month" class="text-2xl font-bold text-med-600">0</p>
+      </div>
+      <div class="bg-white rounded-xl p-3 shadow-sm border border-med-100 text-center">
+       <p class="text-xs text-med-500">วันนี้</p>
+       <p id="admin-today" class="text-2xl font-bold text-blue-500">0</p>
+      </div>
+     </div>
+     <div class="bg-white rounded-2xl p-4 shadow-sm border border-med-100 mb-4">
+      <h3 class="font-semibold text-med-800 mb-3 text-sm">📊 สถิติรายเดือน (12 เดือนล่าสุด)</h3>
+      <div class="overflow-x-auto">
+       <div id="chart-area" class="flex items-end gap-1.5 h-40 min-w-[400px]"></div>
+       <div id="chart-labels" class="flex gap-1.5 mt-1 min-w-[400px]"></div>
+      </div>
+     </div>
+     <div class="bg-white rounded-2xl p-4 shadow-sm border border-med-100">
+      <h3 class="font-semibold text-med-800 mb-3 text-sm">📈 แยกตามบริการ (เดือนนี้)</h3>
+      <div class="space-y-2" id="service-breakdown"></div>
+     </div>
+    </div>
+    <div id="tab-records" class="admin-content px-4 mt-4 pb-8 max-w-4xl mx-auto hidden">
+     <div class="mb-3">
+      <input id="search-input" type="text" placeholder="🔍 ค้นหาชื่อ, รหัสเคส, รหัสนักเรียน..." class="w-full border-2 border-med-100 rounded-xl px-4 py-2.5 input-focus text-sm" oninput="renderRecords()">
+     </div>
+     <div id="records-list" class="space-y-3"></div>
+     <p id="no-records" class="text-center text-med-400 py-8 hidden">ไม่พบข้อมูล</p>
+    </div>
+    <div id="tab-providers" class="admin-content px-4 mt-4 pb-8 max-w-4xl mx-auto hidden">
+     <div class="bg-white rounded-2xl p-4 shadow-sm border border-med-100 mb-4">
+      <h3 class="font-semibold text-med-800 mb-3">👨‍⚕️ จัดการผู้ให้บริการ</h3>
+      <div class="flex gap-2 mb-3">
+       <input id="new-provider" type="text" placeholder="เพิ่มชื่อผู้ให้บริการ..." class="flex-1 border-2 border-med-100 rounded-xl px-3 py-2.5 input-focus text-sm">
+       <button onclick="addProvider()" class="px-4 py-2.5 bg-med-600 text-white rounded-xl font-medium btn-press hover:bg-med-700 text-sm">เพิ่ม</button>
+      </div>
+      <div id="provider-list" class="space-y-2"></div>
+     </div>
+    </div>
+   </div>
+
+   <script>
+// ===== CONFIG =====
+const GS_URL = 'https://script.google.com/macros/s/AKfycbx8y-8eveHIcIAUTvIdeQBB-WsO2jQSNdaonzq6IPxwnMuG6UADoc468ebzhysWviStYA/exec';
+
+// ===== STATE =====
+let allRecords = [];
+let currentService = '';
+let providers = ['ครูพยาบาล', 'นักเรียนอาสา'];
+
+// ===== GOOGLE SHEET API =====
+async function gsGet() {
+  try {
+    const res = await fetch(GS_URL);
+    const data = await res.json();
+    return data;
+  } catch(e) {
+    console.error('gsGet error', e);
+    return [];
+  }
+}
+
+async function gsPost(payload) {
+  try {
+    const res = await fetch(GS_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    return data.ok === true;
+  } catch(e) {
+    console.error('gsPost error', e);
+    return false;
+  }
+}
+
+async function loadRecords() {
+  allRecords = await gsGet();
+  if (document.getElementById('page-admin').classList.contains('active')) {
+    renderAdminDashboard();
+    renderRecords();
+  }
+}
+
+// ===== ELEMENT SDK =====
+const defaultConfig = {
+  app_title: 'CRS (Clinic Record System)',
+  slogan_line1: 'งานพยาบาลและงานอนามัย',
+  slogan_line2: 'ดูแล ส่งเสริม และป้องกัน',
+  slogan_line3: 'สุขภาพนักเรียนและบุคลากรในสถานศึกษา',
+  emergency_phone: '061-467-9176',
+  facebook_label: 'งานพยาบาลและงานอนามัยโรงเรียนอรัญประเทศ',
+  background_color: '#dbeafe',
+  surface_color: '#ffffff',
+  text_color: '#1e40af',
+  primary_action_color: '#2563eb',
+  secondary_action_color: '#3b82f6',
+  font_family: 'Prompt',
+  font_size: 16
+};
+
+// FIX: ป้องกัน error เมื่อ elementSdk ไม่โหลด (เช่น รันใน local โดยไม่มี server)
+if (window.elementSdk) {
+  window.elementSdk.init({
+    defaultConfig,
+    onConfigChange: async (config) => {
+      const c = key => config[key] || defaultConfig[key];
+      document.getElementById('el-title').textContent = c('app_title');
+      document.getElementById('el-slogan1').textContent = c('slogan_line1');
+      document.getElementById('el-slogan2').textContent = c('slogan_line2');
+      document.getElementById('el-slogan3').textContent = c('slogan_line3');
+      document.getElementById('el-emergency').textContent = c('emergency_phone');
+      document.getElementById('el-fb').textContent = c('facebook_label');
+      document.body.style.fontFamily = c('font_family') + ', Prompt, sans-serif';
+      document.documentElement.style.fontSize = c('font_size') + 'px';
+      document.querySelectorAll('.nurse-bg').forEach(el => el.style.background = 'linear-gradient(135deg, ' + c('background_color') + ' 0%, #f0f9ff 100%)');
+      document.querySelectorAll('.header-gradient').forEach(el => el.style.background = 'linear-gradient(135deg, ' + c('text_color') + ' 0%, ' + c('primary_action_color') + ' 50%, ' + c('secondary_action_color') + ' 100%)');
+    },
+    mapToCapabilities: (config) => {
+      const c = key => config[key] || defaultConfig[key];
+      const mkColor = (key) => ({
+        get: () => c(key),
+        set: (v) => { config[key] = v; window.elementSdk.setConfig({ [key]: v }); }
+      });
+      return {
+        recolorables: [mkColor('background_color'), mkColor('surface_color'), mkColor('text_color'), mkColor('primary_action_color'), mkColor('secondary_action_color')],
+        borderables: [],
+        fontEditable: { get: () => c('font_family'), set: (v) => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); } },
+        fontSizeable: { get: () => c('font_size'), set: (v) => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); } }
+      };
+    },
+    mapToEditPanelValues: (config) => {
+      const c = key => config[key] || defaultConfig[key];
+      return new Map([
+        ['app_title', c('app_title')],
+        ['slogan_line1', c('slogan_line1')],
+        ['slogan_line2', c('slogan_line2')],
+        ['slogan_line3', c('slogan_line3')],
+        ['emergency_phone', c('emergency_phone')],
+        ['facebook_label', c('facebook_label')]
+      ]);
+    }
+  });
+} else {
+  // SDK ไม่มี: ใช้ค่า defaultConfig แทน (ทำงานได้ปกติ)
+  console.info('elementSdk ไม่พร้อมใช้งาน — ใช้ค่าเริ่มต้นแทน');
+}
+
+// โหลดข้อมูลตอนเริ่ม
+loadRecords();
+
+// ===== NAVIGATION =====
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (id === 'admin') {
+    loadRecords().then(() => {
+      renderAdminDashboard();
+      renderRecords();
+      renderProviders();
+    });
+  }
+  window.scrollTo(0, 0);
+}
+
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2500);
+}
+function showError(msg) {
+  const t = document.getElementById('error-toast');
+  document.getElementById('error-toast-msg').textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ===== PIN MODAL =====
+function openPinModal() {
+  document.getElementById('pin-modal').classList.remove('modal-hidden');
+  document.getElementById('pin-modal').classList.add('modal-visible');
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-error').classList.add('hidden');
+}
+function closePinModal() {
+  document.getElementById('pin-modal').classList.add('modal-hidden');
+  document.getElementById('pin-modal').classList.remove('modal-visible');
+}
+function checkPin() {
+  if (document.getElementById('pin-input').value === '123456') {
+    closePinModal();
+    showPage('admin');
+  } else {
+    document.getElementById('pin-error').classList.remove('hidden');
+  }
+}
+
+// ===== DELETE MODAL =====
+let pendingDeleteRecord = null;
+function openDeleteModal(record) {
+  pendingDeleteRecord = record;
+  document.getElementById('delete-msg').textContent = 'ต้องการลบเคส ' + record.case_id + ' หรือไม่?';
+  document.getElementById('delete-modal').classList.remove('modal-hidden');
+  document.getElementById('delete-modal').classList.add('modal-visible');
+  document.getElementById('confirm-delete-btn').onclick = confirmDelete;
+}
+function closeDeleteModal() {
+  document.getElementById('delete-modal').classList.add('modal-hidden');
+  document.getElementById('delete-modal').classList.remove('modal-visible');
+  pendingDeleteRecord = null;
+}
+async function confirmDelete() {
+  if (!pendingDeleteRecord) return;
+  const btn = document.getElementById('confirm-delete-btn');
+  btn.textContent = 'กำลังลบ...';
+  btn.disabled = true;
+  const ok = await gsPost({ action: 'delete', case_id: pendingDeleteRecord.case_id });
+  btn.textContent = 'ลบ';
+  btn.disabled = false;
+  closeDeleteModal();
+  if (ok) {
+    showToast('ลบข้อมูลสำเร็จ');
+    await loadRecords();
+    renderAdminDashboard();
+    renderRecords();
+  } else {
+    showError('ลบข้อมูลไม่สำเร็จ');
+  }
+}
+
+// ===== SERVICE SELECTION =====
+function selectService(type) {
+  currentService = type;
+  document.querySelectorAll('.service-fields').forEach(f => f.classList.add('hidden'));
+  document.getElementById('fields-' + type).classList.remove('hidden');
+  ['f-symptom','f-medicine','f-cause','f-area','f-rest-time','f-rest-symptom'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.required = false;
+  });
+  if (type === 'medicine') {
+    document.getElementById('f-symptom').required = true;
+    document.getElementById('f-medicine').required = true;
+  }
+  if (type === 'wound') {
+    document.getElementById('f-cause').required = true;
+    document.getElementById('f-area').required = true;
+  }
+  if (type === 'rest') {
+    document.getElementById('f-rest-time').required = true;
+    document.getElementById('f-rest-symptom').required = true;
+  }
+  const titles = { medicine: '💊 บันทึกการรับยา', wound: '🩹 บันทึกการทำแผล', rest: '🛏️ บันทึกการนอนพัก' };
+  document.getElementById('form-title').textContent = titles[type];
+  document.getElementById('form-case-id').textContent = generateCaseId();
+  updateProviderDropdown();
+  document.getElementById('clinic-form').reset();
+  showPage('form');
+}
+
+function generateCaseId() {
+  const d = new Date();
+  const ds = d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+  const todayRecords = allRecords.filter(r => r.case_id && r.case_id.includes(ds));
+  const seq = String(todayRecords.length + 1).padStart(4, '0');
+  return 'CRS-' + ds + '-' + seq;
+}
+
+function updateProviderDropdown() {
+  const sel = document.getElementById('f-provider');
+  sel.innerHTML = '<option value="">-- เลือกผู้ให้บริการ --</option>';
+  providers.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
+
+// ===== SUBMIT =====
+async function submitForm() {
+  const form = document.getElementById('clinic-form');
+  const sid = document.getElementById('f-sid').value;
+  if (!/^\d{5}$/.test(sid)) { showError('รหัสนักเรียนต้องเป็นตัวเลข 5 หลัก'); return; }
+  if (!form.checkValidity()) { showError('กรุณากรอกข้อมูลให้ครบ'); return; }
+  if (!document.getElementById('f-provider').value) { showError('กรุณาเลือกผู้ให้บริการ'); return; }
+
+  const caseId = document.getElementById('form-case-id').textContent;
+  const base = {
+    case_id: caseId,
+    date: new Date().toISOString(),
+    name: document.getElementById('f-name').value,
+    age: document.getElementById('f-age').value,
+    gender: document.getElementById('f-gender').value,
+    room: document.getElementById('f-room').value,
+    phone: document.getElementById('f-phone').value || '',
+    student_id: sid,
+    service_type: currentService,
+    provider: document.getElementById('f-provider').value,
+    symptom: '', medicine: '', cause: '', wound_area: '', rest_start: '', detail_summary: ''
+  };
+
+  if (currentService === 'medicine') {
+    base.symptom = document.getElementById('f-symptom').value;
+    base.medicine = document.getElementById('f-medicine').value;
+    base.detail_summary = 'อาการ: ' + base.symptom + ', ยา: ' + base.medicine;
+  } else if (currentService === 'wound') {
+    base.cause = document.getElementById('f-cause').value;
+    base.wound_area = document.getElementById('f-area').value;
+    base.detail_summary = 'สาเหตุ: ' + base.cause + ', บริเวณ: ' + base.wound_area;
+  } else {
+    base.rest_start = document.getElementById('f-rest-time').value;
+    base.symptom = document.getElementById('f-rest-symptom').value;
+    base.medicine = document.getElementById('f-rest-med').value || 'ไม่มี';
+    base.detail_summary = 'เวลา: ' + base.rest_start + ', อาการ: ' + base.symptom + ', ยา: ' + base.medicine;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.textContent = '⏳ กำลังบันทึก...';
+  btn.disabled = true;
+  const ok = await gsPost(base);
+  btn.textContent = '✅ บันทึกข้อมูล';
+  btn.disabled = false;
+
+  if (ok) {
+    allRecords.push(base);
+    document.getElementById('success-case').textContent = caseId;
+    document.getElementById('success-name').textContent = base.name;
+    showPage('success');
+  } else {
+    showError('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+  }
+}
+
+// ===== ADMIN =====
+function showAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => {
+    t.classList.remove('bg-med-600', 'text-white');
+    t.classList.add('bg-med-100', 'text-med-700');
+  });
+  document.querySelector('.admin-tab[data-tab="' + tab + '"]').classList.remove('bg-med-100', 'text-med-700');
+  document.querySelector('.admin-tab[data-tab="' + tab + '"]').classList.add('bg-med-600', 'text-white');
+  document.querySelectorAll('.admin-content').forEach(c => c.classList.add('hidden'));
+  document.getElementById('tab-' + tab).classList.remove('hidden');
+}
+
+function renderAdminDashboard() {
+  const today = new Date().toISOString().slice(0, 10);
+  const thisMonth = today.slice(0, 7);
+  document.getElementById('admin-total').textContent = allRecords.length;
+  document.getElementById('admin-month').textContent = allRecords.filter(r => r.date && r.date.slice(0, 7) === thisMonth).length;
+  document.getElementById('admin-today').textContent = allRecords.filter(r => r.date && r.date.slice(0, 10) === today).length;
+
+  const months = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ key: d.toISOString().slice(0, 7), label: (d.getMonth()+1) + '/' + String(d.getFullYear()).slice(2) });
+  }
+  const counts = months.map(m => allRecords.filter(r => r.date && r.date.slice(0, 7) === m.key).length);
+  const max = Math.max(...counts, 1);
+
+  const chartArea = document.getElementById('chart-area');
+  const chartLabels = document.getElementById('chart-labels');
+  chartArea.innerHTML = '';
+  chartLabels.innerHTML = '';
+  months.forEach((m, i) => {
+    const pct = (counts[i] / max) * 100;
+    const bar = document.createElement('div');
+    bar.className = 'flex-1 rounded-t-md transition-all duration-500';
+    bar.style.height = Math.max(pct, 4) + '%';
+    bar.style.background = i === months.length - 1 ? '#2563eb' : '#93c5fd';
+    bar.title = m.label + ': ' + counts[i] + ' เคส';
+    chartArea.appendChild(bar);
+    const lbl = document.createElement('div');
+    lbl.className = 'flex-1 text-center text-[9px] text-med-500';
+    lbl.textContent = m.label;
+    chartLabels.appendChild(lbl);
+  });
+
+  const monthRecs = allRecords.filter(r => r.date && r.date.slice(0, 7) === thisMonth);
+  const bd = document.getElementById('service-breakdown');
+  bd.innerHTML = '';
+  [{key:'medicine',label:'💊 รับยา',color:'#3b82f6'},{key:'wound',label:'🩹 ทำแผล',color:'#22c55e'},{key:'rest',label:'🛏️ นอนพัก',color:'#a855f7'}].forEach(s => {
+    const cnt = monthRecs.filter(r => r.service_type === s.key).length;
+    const pct = monthRecs.length ? (cnt / monthRecs.length * 100) : 0;
+    bd.innerHTML += '<div class="flex items-center gap-3"><span class="text-sm w-20">' + s.label + '</span><div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden"><div class="h-full rounded-full transition-all duration-500" style="width:' + pct + '%;background:' + s.color + '"></div></div><span class="text-sm font-bold w-8 text-right">' + cnt + '</span></div>';
+  });
+}
+
+function renderRecords() {
+  const query = (document.getElementById('search-input').value || '').toLowerCase();
+  const filtered = allRecords.filter(r =>
+    (r.name && r.name.toLowerCase().includes(query)) ||
+    (r.case_id && r.case_id.toLowerCase().includes(query)) ||
+    (r.student_id && String(r.student_id).includes(query))
+  ).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const list = document.getElementById('records-list');
+  list.innerHTML = '';
+  document.getElementById('no-records').classList.toggle('hidden', filtered.length > 0);
+
+  const icons = { medicine: '💊', wound: '🩹', rest: '🛏️' };
+  const labels = { medicine: 'รับยา', wound: 'ทำแผล', rest: 'นอนพัก' };
+
+  filtered.forEach(r => {
+    const d = r.date ? new Date(r.date) : new Date();
+    const dateStr = d.getDate() + '/' + (d.getMonth()+1) + '/' + d.getFullYear() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-xl p-4 shadow-sm border border-med-100';
+    card.innerHTML = '<div class="flex justify-between items-start mb-2"><div><p class="font-bold text-med-800">' + (icons[r.service_type]||'') + ' ' + (r.name||'-') + '</p><p class="text-xs text-med-400">' + (r.case_id||'-') + ' • ' + dateStr + '</p></div><span class="text-xs bg-med-100 text-med-700 px-2 py-1 rounded-lg">' + (labels[r.service_type]||r.service_type) + '</span></div><div class="text-sm text-gray-600 space-y-0.5"><p>👤 รหัส: ' + (r.student_id||'-') + ' | ห้อง: ' + (r.room||'-') + ' | อายุ: ' + (r.age||'-') + ' | เพศ: ' + (r.gender||'-') + '</p><p>📝 ' + (r.detail_summary||'-') + '</p><p>👨‍⚕️ ผู้ให้บริการ: ' + (r.provider||'-') + '</p></div><button class="mt-2 text-xs text-red-400 hover:text-red-600" data-del="true">🗑️ ลบ</button>';
+    card.querySelector('[data-del]').addEventListener('click', () => openDeleteModal(r));
+    list.appendChild(card);
+  });
+}
+
+// ===== PROVIDERS =====
+function renderProviders() {
+  const list = document.getElementById('provider-list');
+  list.innerHTML = '';
+  providers.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 bg-med-50 rounded-xl px-3 py-2';
+    row.innerHTML = '<span class="flex-1 text-sm text-med-800">' + p + '</span><button class="text-red-400 hover:text-red-600 text-sm btn-press" data-rm="' + i + '">✕</button>';
+    row.querySelector('[data-rm]').addEventListener('click', () => { providers.splice(i, 1); renderProviders(); });
+    list.appendChild(row);
+  });
+}
+
+function addProvider() {
+  const input = document.getElementById('new-provider');
+  const name = input.value.trim();
+  if (!name) return;
+  if (providers.includes(name)) { showError('ชื่อนี้มีอยู่แล้ว'); return; }
+  providers.push(name);
+  input.value = '';
+  renderProviders();
+  showToast('เพิ่มผู้ให้บริการสำเร็จ');
+}
+
+// Init
+updateProviderDropdown();
+lucide.createIcons();
+   </script>
+  </div>
+ </body>
+</html>
