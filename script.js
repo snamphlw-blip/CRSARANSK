@@ -2,8 +2,17 @@ const GS_URL = 'https://script.google.com/macros/s/AKfycbx8y-8eveHIcIAUTvIdeQBB-
 
 let allRecords = [];
 let currentService = '';
-let providers = ['ครูพยาบาล', 'นักเรียนอาสา'];
+let providers = [];
 
+async function loadProviders() {
+  try {
+    const res = await fetch(GS_URL + '?action=getProviders');
+    providers = await res.json();
+  } catch(e) {
+    console.error('loadProviders error', e);
+    providers = ['ครูพยาบาล', 'นักเรียนอาสา'];
+  }
+}
 async function gsGet() {
   try {
     const res = await fetch(GS_URL);
@@ -182,7 +191,7 @@ async function confirmDelete() {
 }
 
 // ===== SERVICE SELECTION =====
-function selectService(type) {
+async function selectService(type) {
   currentService = type;
   document.querySelectorAll('.service-fields').forEach(f => f.classList.add('hidden'));
   document.getElementById('fields-' + type).classList.remove('hidden');
@@ -204,7 +213,8 @@ function selectService(type) {
   }
   const titles = { medicine: '💊 บันทึกการรับยา', wound: '🩹 บันทึกการทำแผล', rest: '🛏️ บันทึกการนอนพัก' };
   document.getElementById('form-title').textContent = titles[type];
-  document.getElementById('form-case-id').textContent = generateCaseId();
+document.getElementById('form-case-id').textContent = generateCaseId();
+  await loadProviders();
   updateProviderDropdown();
   document.getElementById('clinic-form').reset();
   showPage('form');
@@ -370,26 +380,43 @@ function renderRecords() {
 function renderProviders() {
   const list = document.getElementById('provider-list');
   list.innerHTML = '';
-  providers.forEach((p, i) => {
+  providers.forEach((p) => {
     const row = document.createElement('div');
     row.className = 'flex items-center gap-2 bg-med-50 rounded-xl px-3 py-2';
-    row.innerHTML = '<span class="flex-1 text-sm text-med-800">' + p + '</span><button class="text-red-400 hover:text-red-600 text-sm btn-press" data-rm="' + i + '">✕</button>';
-    row.querySelector('[data-rm]').addEventListener('click', () => { providers.splice(i, 1); renderProviders(); });
+    row.innerHTML = `<span class="flex-1 text-sm text-med-800">${p}</span>
+      <button class="text-red-400 hover:text-red-600 text-sm btn-press">✕</button>`;
+    row.querySelector('button').addEventListener('click', () => removeProvider(p));
     list.appendChild(row);
   });
 }
 
-function addProvider() {
+async function removeProvider(name) {
+  const ok = await gsPost({ action: 'deleteProvider', name });
+  if (ok) {
+    providers = providers.filter(p => p !== name);
+    renderProviders();
+    showToast('ลบผู้ให้บริการสำเร็จ');
+  } else {
+    showError('ลบไม่สำเร็จ');
+  }
+}
+
+async function addProvider() {
   const input = document.getElementById('new-provider');
   const name = input.value.trim();
   if (!name) return;
   if (providers.includes(name)) { showError('ชื่อนี้มีอยู่แล้ว'); return; }
-  providers.push(name);
-  input.value = '';
-  renderProviders();
-  showToast('เพิ่มผู้ให้บริการสำเร็จ');
+  const ok = await gsPost({ action: 'addProvider', name });
+  if (ok) {
+    providers.push(name);
+    input.value = '';
+    renderProviders();
+    showToast('เพิ่มผู้ให้บริการสำเร็จ');
+  } else {
+    showError('เพิ่มไม่สำเร็จ กรุณาลองใหม่');
+  }
 }
 
 // Init
-updateProviderDropdown();
+loadProviders().then(() => updateProviderDropdown());
 lucide.createIcons();
