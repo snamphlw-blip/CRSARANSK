@@ -23,7 +23,7 @@ body {
 
 /* ===== UTILITY CLASSES ===== */
 .fade-in  { animation: fadeIn  0.5s ease forwards; }
-.slide-up { animation: slideUp 0.6s ease forwards; }
+.slide-up { animation: slideUp 0.6s ease both; }
 
 .card-hover { transition: all 0.3s ease; }
 .card-hover:hover {
